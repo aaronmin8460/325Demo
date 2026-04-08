@@ -20,19 +20,52 @@ public class MCQQuestion extends Question {
 
     @Override
 
+    public String getQuestionType() {
+
+        return "MCQ";
+
+    }
+
+    @Override
+
     public String displayQuestion() {
 
-        // TODO: Implement display logic
+        StringBuilder builder = new StringBuilder(prompt);
 
-        return prompt;
+        if (choices != null && !choices.isEmpty()) {
+
+            for (int i = 0; i < choices.size(); i++) {
+
+                builder.append(System.lineSeparator())
+                        .append(i + 1)
+                        .append(". ")
+                        .append(choices.get(i));
+
+            }
+
+        }
+
+        return builder.toString();
 
     }
 
     public boolean isCorrect(String answer) {
 
-        // TODO: Implement correctness check
+        if (correctChoice == null) {
 
-        return false;
+            return false;
+
+        }
+
+        return correctChoice.trim().equalsIgnoreCase(normalizeAnswer(answer));
+
+    }
+
+    @Override
+
+    public boolean evaluateAnswer(String answer) {
+
+        return isCorrect(answer);
 
     }
 

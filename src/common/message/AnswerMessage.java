@@ -26,21 +26,45 @@ public class AnswerMessage extends Message {
 
     @Override
 
-    public String serialize() {
+    public String getMessageType() {
 
-        // TODO: Implement serialization
-
-        return "";
+        return "ANSWER";
 
     }
 
     @Override
 
-    public Message deserialize() {
+    public String serialize() {
 
-        // TODO: Implement deserialization
+        return String.join("|",
+                getMessageType(),
+                String.valueOf(messageId),
+                timestamp.toString(),
+                String.valueOf(senderId),
+                String.valueOf(answer.getAnswerId()),
+                MessageCodec.encode(answer.getResponse()));
 
-        return null;
+    }
+
+    static AnswerMessage fromParts(String[] parts) {
+
+        if (parts.length < 6) {
+
+            throw new IllegalArgumentException("Invalid ANSWER message.");
+
+        }
+
+        Answer answer = new Answer(
+                Integer.parseInt(parts[4]),
+                MessageCodec.decode(parts[5]),
+                false,
+                LocalDateTime.parse(parts[2]));
+
+        return new AnswerMessage(
+                Integer.parseInt(parts[1]),
+                LocalDateTime.parse(parts[2]),
+                Integer.parseInt(parts[3]),
+                answer);
 
     }
 

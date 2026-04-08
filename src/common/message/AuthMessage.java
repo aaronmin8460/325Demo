@@ -8,7 +8,10 @@ public class AuthMessage extends Message {
 
     private String password;
 
-    public AuthMessage(int messageId, LocalDateTime timestamp, int senderId, String username, String password) {
+    private String localeCode;
+
+    public AuthMessage(int messageId, LocalDateTime timestamp, int senderId, String username, String password,
+            String localeCode) {
 
         super(messageId, timestamp, senderId);
 
@@ -16,13 +19,15 @@ public class AuthMessage extends Message {
 
         this.password = password;
 
+        this.localeCode = localeCode;
+
     }
 
     public boolean authenticate() {
 
-        // TODO: Implement authentication logic
+        // TODO: Replace this with real credential validation when user accounts exist.
 
-        return false;
+        return username != null && !username.trim().isEmpty();
 
     }
 
@@ -36,23 +41,48 @@ public class AuthMessage extends Message {
 
     public void setPassword(String password) { this.password = password; }
 
+    public String getLocaleCode() { return localeCode; }
+
+    public void setLocaleCode(String localeCode) { this.localeCode = localeCode; }
+
     @Override
 
-    public String serialize() {
+    public String getMessageType() {
 
-        // TODO: Implement serialization
-
-        return "";
+        return "AUTH";
 
     }
 
     @Override
 
-    public Message deserialize() {
+    public String serialize() {
 
-        // TODO: Implement deserialization
+        return String.join("|",
+                getMessageType(),
+                String.valueOf(messageId),
+                timestamp.toString(),
+                String.valueOf(senderId),
+                MessageCodec.encode(username),
+                MessageCodec.encode(password),
+                localeCode == null || localeCode.isEmpty() ? "en" : localeCode);
 
-        return null;
+    }
+
+    static AuthMessage fromParts(String[] parts) {
+
+        if (parts.length < 7) {
+
+            throw new IllegalArgumentException("Invalid AUTH message.");
+
+        }
+
+        return new AuthMessage(
+                Integer.parseInt(parts[1]),
+                LocalDateTime.parse(parts[2]),
+                Integer.parseInt(parts[3]),
+                MessageCodec.decode(parts[4]),
+                MessageCodec.decode(parts[5]),
+                parts[6].isEmpty() ? "en" : parts[6]);
 
     }
 

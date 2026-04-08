@@ -22,7 +22,17 @@ public abstract class Question {
 
     }
 
+    public abstract String getQuestionType();
+
     public abstract String displayQuestion();
+
+    public abstract boolean evaluateAnswer(String answer);
+
+    protected String normalizeAnswer(String answer) {
+
+        return answer == null ? "" : answer.trim();
+
+    }
 
     // getters and setters
 

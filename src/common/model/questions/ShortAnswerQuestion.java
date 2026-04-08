@@ -14,9 +14,15 @@ public class ShortAnswerQuestion extends Question {
 
     @Override
 
-    public String displayQuestion() {
+    public String getQuestionType() {
 
-        // TODO: Implement display logic
+        return "SHORT_ANSWER";
+
+    }
+
+    @Override
+
+    public String displayQuestion() {
 
         return prompt;
 
@@ -24,9 +30,22 @@ public class ShortAnswerQuestion extends Question {
 
     public boolean compareAnswer(String answer) {
 
-        // TODO: Implement answer comparison
+        // TODO: Replace this exact-match logic with richer short-answer grading if needed.
+        if (expectedAnswer == null) {
 
-        return false;
+            return false;
+
+        }
+
+        return expectedAnswer.trim().equalsIgnoreCase(normalizeAnswer(answer));
+
+    }
+
+    @Override
+
+    public boolean evaluateAnswer(String answer) {
+
+        return compareAnswer(answer);
 
     }
 

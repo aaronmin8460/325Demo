@@ -20,9 +20,9 @@ public abstract class Message {
 
     }
 
-    public abstract String serialize();
+    public abstract String getMessageType();
 
-    public abstract Message deserialize();
+    public abstract String serialize();
 
     // getters and setters
 

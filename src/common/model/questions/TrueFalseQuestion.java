@@ -14,19 +14,42 @@ public class TrueFalseQuestion extends Question {
 
     @Override
 
+    public String getQuestionType() {
+
+        return "TRUE_FALSE";
+
+    }
+
+    @Override
+
     public String displayQuestion() {
 
-        // TODO: Implement display logic
-
-        return prompt;
+        return prompt + " (True / False)";
 
     }
 
     public boolean isCorrect(String answer) {
 
-        // TODO: Implement correctness check
+        String normalizedAnswer = normalizeAnswer(answer).toLowerCase();
 
-        return false;
+        if (!"true".equals(normalizedAnswer) && !"false".equals(normalizedAnswer)
+                && !"t".equals(normalizedAnswer) && !"f".equals(normalizedAnswer)) {
+
+            return false;
+
+        }
+
+        boolean submittedValue = "true".equals(normalizedAnswer) || "t".equals(normalizedAnswer);
+
+        return submittedValue == correctValue;
+
+    }
+
+    @Override
+
+    public boolean evaluateAnswer(String answer) {
+
+        return isCorrect(answer);
 
     }
 

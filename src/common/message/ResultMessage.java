@@ -32,21 +32,40 @@ public class ResultMessage extends Message {
 
     @Override
 
-    public String serialize() {
+    public String getMessageType() {
 
-        // TODO: Implement serialization
-
-        return "";
+        return "RESULT";
 
     }
 
     @Override
 
-    public Message deserialize() {
+    public String serialize() {
 
-        // TODO: Implement deserialization
+        return String.join("|",
+                getMessageType(),
+                String.valueOf(messageId),
+                timestamp.toString(),
+                String.valueOf(senderId),
+                String.valueOf(correct),
+                MessageCodec.encode(feedback));
 
-        return null;
+    }
+
+    static ResultMessage fromParts(String[] parts) {
+
+        if (parts.length < 6) {
+
+            throw new IllegalArgumentException("Invalid RESULT message.");
+
+        }
+
+        return new ResultMessage(
+                Integer.parseInt(parts[1]),
+                LocalDateTime.parse(parts[2]),
+                Integer.parseInt(parts[3]),
+                Boolean.parseBoolean(parts[4]),
+                MessageCodec.decode(parts[5]));
 
     }
 
