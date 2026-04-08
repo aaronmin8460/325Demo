@@ -3,8 +3,10 @@ package client.gui;
 import client.i18n.LocalizationManager;
 import client.network.ClientConnection;
 import common.message.QuestionMessage;
+import common.model.UserRole;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
@@ -12,6 +14,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 
@@ -38,6 +41,8 @@ public class LoginFrame extends JFrame {
 
     private JLabel localeLabel;
 
+    private JLabel roleLabel;
+
     private JLabel statusLabel;
 
     private JTextField hostField;
@@ -49,6 +54,10 @@ public class LoginFrame extends JFrame {
     private JPasswordField passwordField;
 
     private JComboBox<LocaleOption> localeComboBox;
+
+    private JRadioButton studentRoleButton;
+
+    private JRadioButton instructorRoleButton;
 
     private JButton connectButton;
 
@@ -66,7 +75,7 @@ public class LoginFrame extends JFrame {
         layoutComponents();
         refreshTexts();
 
-        setSize(420, 280);
+        setSize(460, 330);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -81,6 +90,7 @@ public class LoginFrame extends JFrame {
         usernameLabel = new JLabel();
         passwordLabel = new JLabel();
         localeLabel = new JLabel();
+        roleLabel = new JLabel();
         statusLabel = new JLabel();
 
         hostField = new JTextField("127.0.0.1", 14);
@@ -92,6 +102,7 @@ public class LoginFrame extends JFrame {
                 new LocaleOption(new Locale("en"), "English"),
                 new LocaleOption(new Locale("es"), "Espanol")
         });
+        selectCurrentLocale();
         localeComboBox.addActionListener(event -> {
             LocaleOption option = (LocaleOption) localeComboBox.getSelectedItem();
 
@@ -102,6 +113,13 @@ public class LoginFrame extends JFrame {
 
             }
         });
+
+        studentRoleButton = new JRadioButton();
+        instructorRoleButton = new JRadioButton();
+
+        ButtonGroup roleGroup = new ButtonGroup();
+        roleGroup.add(studentRoleButton);
+        roleGroup.add(instructorRoleButton);
 
         connectButton = new JButton();
         connectButton.addActionListener(event -> handleConnect());
@@ -123,7 +141,8 @@ public class LoginFrame extends JFrame {
         addFormRow(formPanel, constraints, 1, portLabel, portField);
         addFormRow(formPanel, constraints, 2, usernameLabel, usernameField);
         addFormRow(formPanel, constraints, 3, passwordLabel, passwordField);
-        addFormRow(formPanel, constraints, 4, localeLabel, localeComboBox);
+        addFormRow(formPanel, constraints, 4, roleLabel, buildRolePanel());
+        addFormRow(formPanel, constraints, 5, localeLabel, localeComboBox);
 
         contentPanel.add(headerLabel, BorderLayout.NORTH);
         contentPanel.add(formPanel, BorderLayout.CENTER);
@@ -159,8 +178,11 @@ public class LoginFrame extends JFrame {
         portLabel.setText(localizationManager.text("login.port"));
         usernameLabel.setText(localizationManager.text("login.username"));
         passwordLabel.setText(localizationManager.text("login.password"));
+        roleLabel.setText(localizationManager.text("login.role"));
+        studentRoleButton.setText(localizationManager.text("login.role.student"));
+        instructorRoleButton.setText(localizationManager.text("login.role.instructor"));
         localeLabel.setText(localizationManager.text("login.locale"));
-        connectButton.setText(localizationManager.text("login.connect"));
+        connectButton.setText(localizationManager.text("login.continue"));
         statusLabel.setText(localizationManager.text("login.status.ready"));
 
     }
@@ -171,6 +193,7 @@ public class LoginFrame extends JFrame {
         String portText = portField.getText().trim();
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
+        UserRole selectedRole = getSelectedRole();
 
         if (host.isEmpty() || portText.isEmpty() || username.isEmpty()) {
 
@@ -188,6 +211,28 @@ public class LoginFrame extends JFrame {
         } catch (NumberFormatException exception) {
 
             showError(localizationManager.text("error.invalidPort"));
+            return;
+
+        }
+
+        if (selectedRole == null) {
+
+            showError(localizationManager.text("error.roleRequired"));
+            return;
+
+        }
+
+        if (selectedRole == UserRole.INSTRUCTOR) {
+
+            dispose();
+
+            InstructorDashboardFrame dashboardFrame = new InstructorDashboardFrame(
+                    localizationManager,
+                    host,
+                    port,
+                    username,
+                    password);
+            dashboardFrame.setVisible(true);
             return;
 
         }
@@ -235,6 +280,53 @@ public class LoginFrame extends JFrame {
         };
 
         worker.execute();
+
+    }
+
+    private JPanel buildRolePanel() {
+
+        JPanel rolePanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 0));
+        rolePanel.add(studentRoleButton);
+        rolePanel.add(instructorRoleButton);
+
+        return rolePanel;
+
+    }
+
+    private void selectCurrentLocale() {
+
+        Locale currentLocale = localizationManager.getLocale();
+
+        for (int i = 0; i < localeComboBox.getItemCount(); i++) {
+
+            LocaleOption option = localeComboBox.getItemAt(i);
+
+            if (option.getLocale().getLanguage().equals(currentLocale.getLanguage())) {
+
+                localeComboBox.setSelectedIndex(i);
+                return;
+
+            }
+
+        }
+
+    }
+
+    private UserRole getSelectedRole() {
+
+        if (studentRoleButton.isSelected()) {
+
+            return UserRole.STUDENT;
+
+        }
+
+        if (instructorRoleButton.isSelected()) {
+
+            return UserRole.INSTRUCTOR;
+
+        }
+
+        return null;
 
     }
 

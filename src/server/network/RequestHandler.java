@@ -2,10 +2,14 @@ package server.network;
 
 import common.message.AnswerMessage;
 import common.message.AuthMessage;
+import common.message.InstructorCommandMessage;
+import common.message.InstructorQuestionMessage;
 import common.message.Message;
 import common.message.MessageFactory;
 import common.message.QuestionMessage;
 import common.message.ResultMessage;
+import common.message.SubmissionResultsMessage;
+import common.model.UserRole;
 import common.model.questions.Question;
 import common.util.SessionTime;
 import server.service.QuizService;
@@ -95,6 +99,13 @@ public class RequestHandler implements Runnable {
         }
 
         // TODO: Add GeoService/LocationPolicy checks here before sending quiz content.
+        if (authMessage.getRole() == UserRole.INSTRUCTOR) {
+
+            processInstructorRequest(authMessage, reader, writer);
+            return;
+
+        }
+
         Question question = quizService.getNextQuestion(authMessage.getLocaleCode());
         QuestionMessage questionMessage = new QuestionMessage(
                 nextMessageId++,
@@ -123,7 +134,8 @@ public class RequestHandler implements Runnable {
                 question,
                 answerMessage.getAnswer(),
                 authMessage.getLocaleCode(),
-                nextMessageId++);
+                nextMessageId++,
+                authMessage.getUsername());
 
         sendResponse(writer, resultMessage);
 
@@ -158,6 +170,75 @@ public class RequestHandler implements Runnable {
         ResourceBundle bundle = ResourceBundle.getBundle("messages", locale);
 
         return bundle.getString(key);
+
+    }
+
+    private void processInstructorRequest(AuthMessage authMessage, BufferedReader reader, PrintWriter writer)
+            throws IOException {
+
+        Message instructorMessage = readMessage(reader);
+
+        if (instructorMessage instanceof InstructorQuestionMessage) {
+
+            Question question = ((InstructorQuestionMessage) instructorMessage).getQuestion();
+
+            try {
+
+                quizService.saveQuestion(question);
+
+            } catch (IllegalArgumentException exception) {
+
+                sendResponse(writer, new ResultMessage(
+                        nextMessageId++,
+                        LocalDateTime.now(),
+                        0,
+                        false,
+                        exception.getMessage()));
+                return;
+
+            }
+
+            sendResponse(writer, new ResultMessage(
+                    nextMessageId++,
+                    LocalDateTime.now(),
+                    0,
+                    true,
+                    localizedText(authMessage.getLocaleCode(), "server.question.saved")));
+            return;
+
+        }
+
+        if (instructorMessage instanceof InstructorCommandMessage) {
+
+            InstructorCommandMessage commandMessage = (InstructorCommandMessage) instructorMessage;
+
+            if (InstructorCommandMessage.VIEW_RESULTS.equals(commandMessage.getCommand())) {
+
+                sendResponse(writer, new SubmissionResultsMessage(
+                        nextMessageId++,
+                        LocalDateTime.now(),
+                        0,
+                        quizService.getSubmissions()));
+                return;
+
+            }
+
+            sendResponse(writer, new ResultMessage(
+                    nextMessageId++,
+                    LocalDateTime.now(),
+                    0,
+                    false,
+                    localizedText(authMessage.getLocaleCode(), "server.command.unsupported")));
+            return;
+
+        }
+
+        sendResponse(writer, new ResultMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                0,
+                false,
+                localizedText(authMessage.getLocaleCode(), "server.protocol.expectedInstructorRequest")));
 
     }
 

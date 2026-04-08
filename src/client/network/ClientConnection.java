@@ -7,6 +7,7 @@ import common.message.MessageFactory;
 import common.message.QuestionMessage;
 import common.message.ResultMessage;
 import common.model.Answer;
+import common.model.UserRole;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -42,18 +43,9 @@ public class ClientConnection implements AutoCloseable {
 
     public QuestionMessage connect(String username, String password, Locale locale) throws IOException {
 
-        socket = new Socket(host, port);
-        reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        writer = new PrintWriter(socket.getOutputStream(), true);
+        open();
 
-        AuthMessage authMessage = new AuthMessage(
-                nextMessageId++,
-                LocalDateTime.now(),
-                1,
-                username,
-                password,
-                locale == null ? "en" : locale.getLanguage());
-        sendMessage(authMessage);
+        sendAuth(username, password, locale, UserRole.STUDENT);
 
         Message response = receiveMessage();
 
@@ -72,6 +64,34 @@ public class ClientConnection implements AutoCloseable {
 
         close();
         throw new IOException("Unexpected response from server.");
+
+    }
+
+    public void open() throws IOException {
+
+        if (socket != null && socket.isConnected() && !socket.isClosed()) {
+
+            return;
+
+        }
+
+        socket = new Socket(host, port);
+        reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        writer = new PrintWriter(socket.getOutputStream(), true);
+
+    }
+
+    public void sendAuth(String username, String password, Locale locale, UserRole role) throws IOException {
+
+        AuthMessage authMessage = new AuthMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                1,
+                username,
+                password,
+                locale == null ? "en" : locale.getLanguage(),
+                role);
+        sendMessage(authMessage);
 
     }
 

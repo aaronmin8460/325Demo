@@ -41,6 +41,24 @@ public final class MessageFactory {
 
         }
 
+        if ("INSTRUCTOR_COMMAND".equals(messageType)) {
+
+            return InstructorCommandMessage.fromParts(parts);
+
+        }
+
+        if ("INSTRUCTOR_QUESTION".equals(messageType)) {
+
+            return InstructorQuestionMessage.fromParts(parts);
+
+        }
+
+        if ("SUBMISSION_RESULTS".equals(messageType)) {
+
+            return SubmissionResultsMessage.fromParts(parts);
+
+        }
+
         throw new IllegalArgumentException("Unsupported message type: " + messageType);
 
     }

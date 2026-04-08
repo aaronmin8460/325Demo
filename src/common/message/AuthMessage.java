@@ -1,5 +1,7 @@
 package common.message;
 
+import common.model.UserRole;
+
 import java.time.LocalDateTime;
 
 public class AuthMessage extends Message {
@@ -10,16 +12,24 @@ public class AuthMessage extends Message {
 
     private String localeCode;
 
+    private UserRole role;
+
     public AuthMessage(int messageId, LocalDateTime timestamp, int senderId, String username, String password,
             String localeCode) {
+
+        this(messageId, timestamp, senderId, username, password, localeCode, UserRole.STUDENT);
+
+    }
+
+    public AuthMessage(int messageId, LocalDateTime timestamp, int senderId, String username, String password,
+            String localeCode, UserRole role) {
 
         super(messageId, timestamp, senderId);
 
         this.username = username;
-
         this.password = password;
-
         this.localeCode = localeCode;
+        this.role = role == null ? UserRole.STUDENT : role;
 
     }
 
@@ -27,7 +37,7 @@ public class AuthMessage extends Message {
 
         // TODO: Replace this with real credential validation when user accounts exist.
 
-        return username != null && !username.trim().isEmpty();
+        return username != null && !username.trim().isEmpty() && role != null;
 
     }
 
@@ -44,6 +54,10 @@ public class AuthMessage extends Message {
     public String getLocaleCode() { return localeCode; }
 
     public void setLocaleCode(String localeCode) { this.localeCode = localeCode; }
+
+    public UserRole getRole() { return role; }
+
+    public void setRole(UserRole role) { this.role = role == null ? UserRole.STUDENT : role; }
 
     @Override
 
@@ -64,7 +78,8 @@ public class AuthMessage extends Message {
                 String.valueOf(senderId),
                 MessageCodec.encode(username),
                 MessageCodec.encode(password),
-                localeCode == null || localeCode.isEmpty() ? "en" : localeCode);
+                localeCode == null || localeCode.isEmpty() ? "en" : localeCode,
+                role == null ? UserRole.STUDENT.name() : role.name());
 
     }
 
@@ -82,7 +97,8 @@ public class AuthMessage extends Message {
                 Integer.parseInt(parts[3]),
                 MessageCodec.decode(parts[4]),
                 MessageCodec.decode(parts[5]),
-                parts[6].isEmpty() ? "en" : parts[6]);
+                parts[6].isEmpty() ? "en" : parts[6],
+                parts.length > 7 ? UserRole.fromCode(parts[7]) : UserRole.STUDENT);
 
     }
 
