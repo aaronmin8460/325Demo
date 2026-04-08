@@ -10,10 +10,13 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.WindowConstants;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class ResultFrame extends JFrame {
 
@@ -21,17 +24,36 @@ public class ResultFrame extends JFrame {
 
     private final ResultMessage resultMessage;
 
+    private final Runnable onClose;
+
+    private boolean closeHandled;
+
     public ResultFrame(LocalizationManager localizationManager, ResultMessage resultMessage) {
+
+        this(localizationManager, resultMessage, null);
+
+    }
+
+    public ResultFrame(LocalizationManager localizationManager, ResultMessage resultMessage, Runnable onClose) {
 
         this.localizationManager = localizationManager;
         this.resultMessage = resultMessage;
+        this.onClose = onClose;
 
         initializeComponents();
 
         setSize(400, 300);
-
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent event) {
+
+                handleClose();
+
+            }
+        });
 
     }
 
@@ -55,13 +77,33 @@ public class ResultFrame extends JFrame {
         feedbackArea.setEditable(false);
 
         JButton closeButton = new JButton(localizationManager.text("result.close"));
-        closeButton.addActionListener(event -> dispose());
+        closeButton.addActionListener(event -> handleClose());
 
         contentPanel.add(outcomeLabel, BorderLayout.NORTH);
         contentPanel.add(new JScrollPane(feedbackArea), BorderLayout.CENTER);
         contentPanel.add(closeButton, BorderLayout.SOUTH);
 
         add(contentPanel, BorderLayout.CENTER);
+
+    }
+
+    private void handleClose() {
+
+        if (closeHandled) {
+
+            return;
+
+        }
+
+        closeHandled = true;
+
+        if (onClose != null) {
+
+            onClose.run();
+
+        }
+
+        dispose();
 
     }
 

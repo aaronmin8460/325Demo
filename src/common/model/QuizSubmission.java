@@ -8,9 +8,13 @@ public class QuizSubmission {
 
     private String studentUsername;
 
+    private String sessionCode;
+
     private int questionId;
 
     private String questionPrompt;
+
+    private String questionType;
 
     private String submittedAnswer;
 
@@ -24,14 +28,16 @@ public class QuizSubmission {
 
     private LocalDateTime timestamp;
 
-    public QuizSubmission(int submissionId, String studentUsername, int questionId, String questionPrompt,
-            String submittedAnswer, String correctAnswer, boolean correct, int score, int possibleScore,
-            LocalDateTime timestamp) {
+    public QuizSubmission(int submissionId, String studentUsername, String sessionCode, int questionId,
+            String questionPrompt, String questionType, String submittedAnswer, String correctAnswer, boolean correct,
+            int score, int possibleScore, LocalDateTime timestamp) {
 
         this.submissionId = submissionId;
         this.studentUsername = studentUsername;
+        this.sessionCode = sessionCode;
         this.questionId = questionId;
         this.questionPrompt = questionPrompt;
+        this.questionType = questionType;
         this.submittedAnswer = submittedAnswer;
         this.correctAnswer = correctAnswer;
         this.correct = correct;
@@ -49,6 +55,10 @@ public class QuizSubmission {
 
     public void setStudentUsername(String studentUsername) { this.studentUsername = studentUsername; }
 
+    public String getSessionCode() { return sessionCode; }
+
+    public void setSessionCode(String sessionCode) { this.sessionCode = sessionCode; }
+
     public int getQuestionId() { return questionId; }
 
     public void setQuestionId(int questionId) { this.questionId = questionId; }
@@ -56,6 +66,10 @@ public class QuizSubmission {
     public String getQuestionPrompt() { return questionPrompt; }
 
     public void setQuestionPrompt(String questionPrompt) { this.questionPrompt = questionPrompt; }
+
+    public String getQuestionType() { return questionType; }
+
+    public void setQuestionType(String questionType) { this.questionType = questionType; }
 
     public String getSubmittedAnswer() { return submittedAnswer; }
 

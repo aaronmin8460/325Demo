@@ -1,6 +1,8 @@
 package server.network;
 
+import server.service.LiveClassroomService;
 import server.service.QuizService;
+import server.storage.LocalStorageService;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -10,7 +12,7 @@ public class ServerConnection {
 
     private int port;
 
-    private final QuizService quizService;
+    private final LiveClassroomService liveClassroomService;
 
     private ServerSocket serverSocket;
 
@@ -18,7 +20,9 @@ public class ServerConnection {
 
         this.port = port;
 
-        this.quizService = new QuizService();
+        LocalStorageService storageService = new LocalStorageService();
+        QuizService quizService = new QuizService(storageService);
+        this.liveClassroomService = new LiveClassroomService(storageService, quizService);
 
     }
 
@@ -50,7 +54,7 @@ public class ServerConnection {
             Socket clientSocket = serverSocket.accept();
             System.out.println("Client connected from " + clientSocket.getInetAddress().getHostAddress());
 
-            Thread clientThread = new Thread(new RequestHandler(clientSocket, quizService));
+            Thread clientThread = new Thread(new RequestHandler(clientSocket, liveClassroomService));
             clientThread.start();
 
         } catch (IOException exception) {

@@ -2,7 +2,7 @@ package client.gui;
 
 import client.i18n.LocalizationManager;
 import client.network.ClientConnection;
-import common.message.QuestionMessage;
+import common.message.ResultMessage;
 import common.model.UserRole;
 
 import javax.swing.BorderFactory;
@@ -76,7 +76,6 @@ public class LoginFrame extends JFrame {
         refreshTexts();
 
         setSize(460, 330);
-
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -157,7 +156,8 @@ public class LoginFrame extends JFrame {
 
     }
 
-    private void addFormRow(JPanel formPanel, GridBagConstraints constraints, int row, JLabel label, java.awt.Component component) {
+    private void addFormRow(JPanel formPanel, GridBagConstraints constraints, int row, JLabel label,
+            java.awt.Component component) {
 
         constraints.gridx = 0;
         constraints.gridy = row;
@@ -222,34 +222,20 @@ public class LoginFrame extends JFrame {
 
         }
 
-        if (selectedRole == UserRole.INSTRUCTOR) {
-
-            dispose();
-
-            InstructorDashboardFrame dashboardFrame = new InstructorDashboardFrame(
-                    localizationManager,
-                    host,
-                    port,
-                    username,
-                    password);
-            dashboardFrame.setVisible(true);
-            return;
-
-        }
-
         connectButton.setEnabled(false);
         statusLabel.setText(localizationManager.text("login.status.connecting"));
 
         final ClientConnection[] connectionHolder = new ClientConnection[1];
+        final UserRole role = selectedRole;
 
-        SwingWorker<QuestionMessage, Void> worker = new SwingWorker<QuestionMessage, Void>() {
+        SwingWorker<ResultMessage, Void> worker = new SwingWorker<ResultMessage, Void>() {
             @Override
-            protected QuestionMessage doInBackground() throws Exception {
+            protected ResultMessage doInBackground() throws Exception {
 
                 ClientConnection connection = new ClientConnection(host, port);
                 connectionHolder[0] = connection;
 
-                return connection.connect(username, password, localizationManager.getLocale());
+                return connection.authenticate(username, password, localizationManager.getLocale(), role);
 
             }
 
@@ -260,14 +246,35 @@ public class LoginFrame extends JFrame {
 
                 try {
 
-                    QuestionMessage questionMessage = get();
+                    ResultMessage resultMessage = get();
+
+                    if (!resultMessage.isCorrect()) {
+
+                        closeQuietly(connectionHolder[0]);
+                        statusLabel.setText(localizationManager.text("login.status.failed"));
+                        showError(resultMessage.getFeedback());
+                        return;
+
+                    }
+
                     dispose();
 
-                    QuestionFrame questionFrame = new QuestionFrame(
+                    if (role == UserRole.INSTRUCTOR) {
+
+                        InstructorDashboardFrame dashboardFrame = new InstructorDashboardFrame(
+                                localizationManager,
+                                connectionHolder[0],
+                                username);
+                        dashboardFrame.setVisible(true);
+                        return;
+
+                    }
+
+                    StudentJoinFrame studentJoinFrame = new StudentJoinFrame(
                             localizationManager,
                             connectionHolder[0],
-                            questionMessage.getQuestion());
-                    questionFrame.setVisible(true);
+                            username);
+                    studentJoinFrame.setVisible(true);
 
                 } catch (Exception exception) {
 

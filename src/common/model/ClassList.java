@@ -1,5 +1,6 @@
 package common.model;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ClassList {
@@ -20,15 +21,61 @@ public class ClassList {
 
     }
 
-    public void addStudent() {
+    public void addStudent(Student student) {
 
-        // TODO: Implement add student logic
+        if (student == null) {
+
+            return;
+
+        }
+
+        if (students == null) {
+
+            students = new ArrayList<>();
+
+        }
+
+        for (Student existingStudent : students) {
+
+            if (existingStudent.getName() != null
+                    && existingStudent.getName().equalsIgnoreCase(student.getName())) {
+
+                return;
+
+            }
+
+        }
+
+        students.add(student);
 
     }
 
-    public void removeStudent() {
+    public void removeStudent(String username) {
 
-        // TODO: Implement remove student logic
+        if (students == null || username == null) {
+
+            return;
+
+        }
+
+        Student studentToRemove = null;
+
+        for (Student student : students) {
+
+            if (student.getName() != null && student.getName().equalsIgnoreCase(username)) {
+
+                studentToRemove = student;
+                break;
+
+            }
+
+        }
+
+        if (studentToRemove != null) {
+
+            students.remove(studentToRemove);
+
+        }
 
     }
 

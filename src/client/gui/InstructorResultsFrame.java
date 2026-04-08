@@ -1,18 +1,15 @@
 package client.gui;
 
 import client.i18n.LocalizationManager;
-import client.network.InstructorClientService;
 import common.model.QuizSubmission;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
-import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
 
 import java.awt.BorderLayout;
@@ -27,26 +24,18 @@ public class InstructorResultsFrame extends JFrame {
 
     private final LocalizationManager localizationManager;
 
-    private final InstructorClientService instructorClientService;
-
     private DefaultTableModel tableModel;
-
-    private JTable resultsTable;
 
     private JLabel statusLabel;
 
-    private JButton refreshButton;
-
-    public InstructorResultsFrame(LocalizationManager localizationManager,
-            InstructorClientService instructorClientService) {
+    public InstructorResultsFrame(LocalizationManager localizationManager, List<QuizSubmission> submissions) {
 
         this.localizationManager = localizationManager;
-        this.instructorClientService = instructorClientService;
 
         initializeComponents();
-        loadResults();
+        setSubmissions(submissions);
 
-        setSize(920, 420);
+        setSize(1080, 420);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -70,18 +59,14 @@ public class InstructorResultsFrame extends JFrame {
             }
         };
 
-        resultsTable = new JTable(tableModel);
+        JTable resultsTable = new JTable(tableModel);
         resultsTable.setFillsViewportHeight(true);
-
-        refreshButton = new JButton(localizationManager.text("instructor.results.refresh"));
-        refreshButton.addActionListener(event -> loadResults());
 
         JButton backButton = new JButton(localizationManager.text("instructor.results.back"));
         backButton.addActionListener(event -> dispose());
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(backButton);
-        buttonPanel.add(refreshButton);
 
         contentPanel.add(statusLabel, BorderLayout.NORTH);
         contentPanel.add(new JScrollPane(resultsTable), BorderLayout.CENTER);
@@ -91,75 +76,49 @@ public class InstructorResultsFrame extends JFrame {
 
     }
 
-    private void loadResults() {
-
-        refreshButton.setEnabled(false);
-        statusLabel.setText(localizationManager.text("instructor.results.loading"));
-
-        SwingWorker<List<QuizSubmission>, Void> worker = new SwingWorker<List<QuizSubmission>, Void>() {
-            @Override
-            protected List<QuizSubmission> doInBackground() throws Exception {
-
-                return instructorClientService.fetchResults();
-
-            }
-
-            @Override
-            protected void done() {
-
-                refreshButton.setEnabled(true);
-
-                try {
-
-                    List<QuizSubmission> submissions = get();
-                    populateTable(submissions);
-
-                    if (submissions.isEmpty()) {
-
-                        statusLabel.setText(localizationManager.text("instructor.results.empty"));
-
-                    } else {
-
-                        statusLabel.setText(localizationManager.text("instructor.results.loaded"));
-
-                    }
-
-                } catch (Exception exception) {
-
-                    statusLabel.setText(localizationManager.text("instructor.results.failed"));
-                    JOptionPane.showMessageDialog(
-                            InstructorResultsFrame.this,
-                            exception.getCause() == null ? exception.getMessage() : exception.getCause().getMessage(),
-                            localizationManager.text("dialog.error.title"),
-                            JOptionPane.ERROR_MESSAGE);
-
-                }
-            }
-        };
-
-        worker.execute();
-
-    }
-
-    private void populateTable(List<QuizSubmission> submissions) {
+    public void setSubmissions(List<QuizSubmission> submissions) {
 
         tableModel.setRowCount(0);
 
-        for (QuizSubmission submission : submissions) {
+        if (submissions == null || submissions.isEmpty()) {
 
-            tableModel.addRow(new Object[] {
-                    submission.getStudentUsername(),
-                    submission.getQuestionPrompt(),
-                    formatAnswer(submission.getSubmittedAnswer()),
-                    formatAnswer(submission.getCorrectAnswer()),
-                    submission.isCorrect()
-                            ? localizationManager.text("result.correct")
-                            : localizationManager.text("result.incorrect"),
-                    submission.getScore() + "/" + submission.getPossibleScore(),
-                    formatTimestamp(submission.getTimestamp())
-            });
+            statusLabel.setText(localizationManager.text("instructor.results.empty"));
+            return;
 
         }
+
+        for (QuizSubmission submission : submissions) {
+
+            addSubmissionRow(submission);
+
+        }
+
+        statusLabel.setText(localizationManager.text("instructor.results.loaded"));
+
+    }
+
+    public void appendSubmission(QuizSubmission submission) {
+
+        addSubmissionRow(submission);
+        statusLabel.setText(localizationManager.text("instructor.results.liveUpdate"));
+
+    }
+
+    private void addSubmissionRow(QuizSubmission submission) {
+
+        tableModel.addRow(new Object[] {
+                submission.getStudentUsername(),
+                submission.getSessionCode(),
+                submission.getQuestionPrompt(),
+                formatQuestionType(submission.getQuestionType()),
+                formatAnswer(submission.getSubmittedAnswer()),
+                formatAnswer(submission.getCorrectAnswer()),
+                submission.isCorrect()
+                        ? localizationManager.text("result.correct")
+                        : localizationManager.text("result.incorrect"),
+                submission.getScore() + "/" + submission.getPossibleScore(),
+                formatTimestamp(submission.getTimestamp())
+        });
 
     }
 
@@ -167,13 +126,39 @@ public class InstructorResultsFrame extends JFrame {
 
         return new Object[] {
                 localizationManager.text("instructor.results.column.student"),
+                localizationManager.text("instructor.results.column.session"),
                 localizationManager.text("instructor.results.column.question"),
+                localizationManager.text("instructor.results.column.questionType"),
                 localizationManager.text("instructor.results.column.studentAnswer"),
                 localizationManager.text("instructor.results.column.correctAnswer"),
                 localizationManager.text("instructor.results.column.status"),
                 localizationManager.text("instructor.results.column.score"),
                 localizationManager.text("instructor.results.column.timestamp")
         };
+
+    }
+
+    private String formatQuestionType(String questionType) {
+
+        if ("MCQ".equals(questionType)) {
+
+            return localizationManager.text("question.type.mcq");
+
+        }
+
+        if ("TRUE_FALSE".equals(questionType)) {
+
+            return localizationManager.text("question.type.tf");
+
+        }
+
+        if ("SHORT_ANSWER".equals(questionType)) {
+
+            return localizationManager.text("question.type.short");
+
+        }
+
+        return questionType;
 
     }
 

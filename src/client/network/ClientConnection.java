@@ -2,12 +2,17 @@ package client.network;
 
 import common.message.AnswerMessage;
 import common.message.AuthMessage;
+import common.message.CreateClassMessage;
+import common.message.JoinClassMessage;
 import common.message.Message;
 import common.message.MessageFactory;
-import common.message.QuestionMessage;
+import common.message.PostQuestionMessage;
 import common.message.ResultMessage;
 import common.model.Answer;
 import common.model.UserRole;
+import common.model.questions.Question;
+
+import javax.swing.SwingUtilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -19,9 +24,9 @@ import java.util.Locale;
 
 public class ClientConnection implements AutoCloseable {
 
-    private String host;
+    private final String host;
 
-    private int port;
+    private final int port;
 
     private Socket socket;
 
@@ -31,34 +36,39 @@ public class ClientConnection implements AutoCloseable {
 
     private int nextMessageId;
 
+    private ClientMessageListener messageListener;
+
+    private Thread listenerThread;
+
+    private volatile boolean listening;
+
     public ClientConnection(String host, int port) {
 
         this.host = host;
-
         this.port = port;
-
         this.nextMessageId = 1;
 
     }
 
-    public QuestionMessage connect(String username, String password, Locale locale) throws IOException {
+    public ResultMessage authenticate(String username, String password, Locale locale, UserRole role)
+            throws IOException {
 
         open();
-
-        sendAuth(username, password, locale, UserRole.STUDENT);
+        sendAuth(username, password, locale, role);
 
         Message response = receiveMessage();
 
-        if (response instanceof QuestionMessage) {
-
-            return (QuestionMessage) response;
-
-        }
-
         if (response instanceof ResultMessage) {
 
-            close();
-            throw new IOException(((ResultMessage) response).getFeedback());
+            ResultMessage resultMessage = (ResultMessage) response;
+
+            if (!resultMessage.isCorrect()) {
+
+                close();
+
+            }
+
+            return resultMessage;
 
         }
 
@@ -67,7 +77,7 @@ public class ClientConnection implements AutoCloseable {
 
     }
 
-    public void open() throws IOException {
+    public synchronized void open() throws IOException {
 
         if (socket != null && socket.isConnected() && !socket.isClosed()) {
 
@@ -81,7 +91,25 @@ public class ClientConnection implements AutoCloseable {
 
     }
 
-    public void sendAuth(String username, String password, Locale locale, UserRole role) throws IOException {
+    public synchronized void startListening(ClientMessageListener messageListener) {
+
+        this.messageListener = messageListener;
+
+        if (listenerThread != null && listenerThread.isAlive()) {
+
+            return;
+
+        }
+
+        listening = true;
+        listenerThread = new Thread(this::listenForMessages, "quiztrack-client-listener");
+        listenerThread.setDaemon(true);
+        listenerThread.start();
+
+    }
+
+    public synchronized void sendAuth(String username, String password, Locale locale, UserRole role)
+            throws IOException {
 
         AuthMessage authMessage = new AuthMessage(
                 nextMessageId++,
@@ -95,7 +123,38 @@ public class ClientConnection implements AutoCloseable {
 
     }
 
-    public ResultMessage submitAnswer(int questionId, String responseText) throws IOException {
+    public void sendCreateClass(String className) throws IOException {
+
+        sendMessage(new CreateClassMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                1,
+                className));
+
+    }
+
+    public void sendJoinClass(String joinCode) throws IOException {
+
+        sendMessage(new JoinClassMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                1,
+                joinCode));
+
+    }
+
+    public void sendPostQuestion(String joinCode, Question question) throws IOException {
+
+        sendMessage(new PostQuestionMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                1,
+                joinCode,
+                question));
+
+    }
+
+    public void sendAnswer(int questionId, String responseText) throws IOException {
 
         Answer answer = new Answer(questionId, responseText, false, LocalDateTime.now());
         AnswerMessage answerMessage = new AnswerMessage(
@@ -106,19 +165,9 @@ public class ClientConnection implements AutoCloseable {
 
         sendMessage(answerMessage);
 
-        Message response = receiveMessage();
-
-        if (response instanceof ResultMessage) {
-
-            return (ResultMessage) response;
-
-        }
-
-        throw new IOException("Unexpected response from server.");
-
     }
 
-    public void sendMessage(Message message) throws IOException {
+    public synchronized void sendMessage(Message message) throws IOException {
 
         if (writer == null) {
 
@@ -128,9 +177,15 @@ public class ClientConnection implements AutoCloseable {
 
         writer.println(message.serialize());
 
+        if (writer.checkError()) {
+
+            throw new IOException("Failed to send message to the server.");
+
+        }
+
     }
 
-    public Message receiveMessage() throws IOException {
+    private Message receiveMessage() throws IOException {
 
         if (reader == null) {
 
@@ -150,8 +205,65 @@ public class ClientConnection implements AutoCloseable {
 
     }
 
+    private void listenForMessages() {
+
+        try {
+
+            while (listening) {
+
+                Message message = receiveMessage();
+                dispatchMessage(message);
+
+            }
+
+        } catch (IOException exception) {
+
+            if (listening) {
+
+                dispatchDisconnect(exception);
+
+            }
+
+        } finally {
+
+            listening = false;
+
+        }
+
+    }
+
+    private void dispatchMessage(Message message) {
+
+        ClientMessageListener currentListener = messageListener;
+
+        if (currentListener == null) {
+
+            return;
+
+        }
+
+        SwingUtilities.invokeLater(() -> currentListener.onMessage(message));
+
+    }
+
+    private void dispatchDisconnect(Exception exception) {
+
+        ClientMessageListener currentListener = messageListener;
+
+        if (currentListener == null) {
+
+            return;
+
+        }
+
+        SwingUtilities.invokeLater(() -> currentListener.onConnectionClosed(exception));
+
+    }
+
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
+
+        listening = false;
 
         IOException closeException = null;
 

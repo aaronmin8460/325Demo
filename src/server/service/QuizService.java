@@ -11,16 +11,12 @@ import server.storage.LocalStorageService;
 
 import java.text.MessageFormat;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
 public class QuizService {
 
     private final LocalStorageService storageService;
-
-    private int nextQuestionIndex;
 
     public QuizService() {
 
@@ -32,44 +28,18 @@ public class QuizService {
 
         this.storageService = storageService;
 
-        this.nextQuestionIndex = 0;
-        seedQuestionsIfNeeded();
-
     }
 
-    public synchronized ResultMessage gradeAnswer(Question question, Answer answer, String localeCode, int messageId,
-            String studentUsername) {
+    public synchronized QuizSubmission evaluateSubmission(String sessionCode, String studentUsername, Question question,
+            Answer answer) {
 
         boolean correct = question.evaluateAnswer(answer.getResponse());
 
         answer.setCorrect(correct);
-        storageService.saveSubmission(createSubmission(studentUsername, question, answer, correct));
+        QuizSubmission submission = createSubmission(sessionCode, studentUsername, question, answer, correct);
+        storageService.saveSubmission(submission);
 
-        return new ResultMessage(
-                messageId,
-                LocalDateTime.now(),
-                0,
-                correct,
-                buildFeedback(question, correct, localeCode));
-
-    }
-
-    public synchronized Question getNextQuestion(String localeCode) {
-
-        List<Question> questions = storageService.getQuestions();
-
-        if (questions.isEmpty()) {
-
-            throw new IllegalStateException("No questions are available.");
-
-        }
-
-        Question question = questions.get(nextQuestionIndex);
-
-        nextQuestionIndex = (nextQuestionIndex + 1) % questions.size();
-
-        // TODO: Insert dynamic translation here once a translation service is available.
-        return question;
+        return submission;
 
     }
 
@@ -93,52 +63,21 @@ public class QuizService {
 
     }
 
-    public synchronized List<QuizSubmission> getSubmissions() {
+    public synchronized Question findQuestionById(int questionId) {
 
-        return storageService.getSubmissions();
-
-    }
-
-    private void seedQuestionsIfNeeded() {
-
-        if (storageService.hasQuestions()) {
-
-            return;
-
-        }
-
-        for (Question question : createSampleQuestions()) {
-
-            storageService.saveQuestion(question);
-
-        }
+        return storageService.findQuestionById(questionId);
 
     }
 
-    private List<Question> createSampleQuestions() {
+    public ResultMessage buildResultMessage(Question question, QuizSubmission submission, String localeCode,
+            int messageId) {
 
-        List<Question> questions = Arrays.asList(
-                new MCQQuestion(
-                        0,
-                        "Which Java collection prevents duplicate elements?",
-                        "Collections",
-                        1,
-                        Arrays.asList("List", "Set", "Queue", "Stack"),
-                        "Set"),
-                new TrueFalseQuestion(
-                        0,
-                        "A Java interface can be implemented by multiple classes.",
-                        "OOP",
-                        1,
-                        true),
-                new ShortAnswerQuestion(
-                        0,
-                        "What keyword is used to inherit from a superclass in Java?",
-                        "OOP",
-                        1,
-                        "extends"));
-
-        return questions;
+        return new ResultMessage(
+                messageId,
+                LocalDateTime.now(),
+                0,
+                submission.isCorrect(),
+                buildFeedback(question, submission.isCorrect(), localeCode));
 
     }
 
@@ -220,7 +159,8 @@ public class QuizService {
 
     }
 
-    private QuizSubmission createSubmission(String studentUsername, Question question, Answer answer, boolean correct) {
+    private QuizSubmission createSubmission(String sessionCode, String studentUsername, Question question, Answer answer,
+            boolean correct) {
 
         int possibleScore = question.getPoints();
         int score = correct ? possibleScore : 0;
@@ -228,8 +168,10 @@ public class QuizService {
         return new QuizSubmission(
                 0,
                 studentUsername,
+                sessionCode,
                 question.getQuestionId(),
                 question.getPrompt(),
+                question.getQuestionType(),
                 answer.getResponse(),
                 getStoredCorrectAnswer(question),
                 correct,

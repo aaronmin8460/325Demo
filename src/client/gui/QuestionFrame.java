@@ -1,8 +1,6 @@
 package client.gui;
 
 import client.i18n.LocalizationManager;
-import client.network.ClientConnection;
-import common.message.ResultMessage;
 import common.model.questions.MCQQuestion;
 import common.model.questions.Question;
 import common.model.questions.TrueFalseQuestion;
@@ -18,7 +16,6 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.SwingWorker;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -32,9 +29,9 @@ public class QuestionFrame extends JFrame {
 
     private final LocalizationManager localizationManager;
 
-    private final ClientConnection connection;
-
     private final Question question;
+
+    private final QuestionSubmitListener questionSubmitListener;
 
     private final List<JRadioButton> optionButtons;
 
@@ -42,23 +39,25 @@ public class QuestionFrame extends JFrame {
 
     private JLabel questionTypeLabel;
 
+    private JLabel statusLabel;
+
     private JTextField shortAnswerField;
 
     private JButton submitButton;
 
-    public QuestionFrame(LocalizationManager localizationManager, ClientConnection connection, Question question) {
+    public QuestionFrame(LocalizationManager localizationManager, Question question,
+            QuestionSubmitListener questionSubmitListener) {
 
         this.localizationManager = localizationManager;
-        this.connection = connection;
         this.question = question;
+        this.questionSubmitListener = questionSubmitListener;
         this.optionButtons = new ArrayList<>();
 
         initializeComponents();
         layoutComponents();
 
-        setSize(400, 300);
-
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(400, 320);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
 
     }
@@ -72,6 +71,7 @@ public class QuestionFrame extends JFrame {
         promptArea.setBackground(new Color(245, 245, 245));
 
         questionTypeLabel = new JLabel(resolveQuestionTypeLabel());
+        statusLabel = new JLabel(" ");
         submitButton = new JButton(localizationManager.text("question.submit"));
         submitButton.addActionListener(event -> handleSubmit());
 
@@ -131,7 +131,11 @@ public class QuestionFrame extends JFrame {
 
         }
 
-        answerPanel.add(submitButton, BorderLayout.SOUTH);
+        JPanel footerPanel = new JPanel(new BorderLayout(4, 4));
+        footerPanel.add(statusLabel, BorderLayout.NORTH);
+        footerPanel.add(submitButton, BorderLayout.SOUTH);
+
+        answerPanel.add(footerPanel, BorderLayout.SOUTH);
 
         return answerPanel;
 
@@ -185,43 +189,21 @@ public class QuestionFrame extends JFrame {
 
         }
 
-        submitButton.setEnabled(false);
+        try {
 
-        SwingWorker<ResultMessage, Void> worker = new SwingWorker<ResultMessage, Void>() {
-            @Override
-            protected ResultMessage doInBackground() throws Exception {
+            questionSubmitListener.submit(question, response);
+            submitButton.setEnabled(false);
+            statusLabel.setText(localizationManager.text("question.submitted"));
 
-                return connection.submitAnswer(question.getQuestionId(), response);
+        } catch (IOException exception) {
 
-            }
+            JOptionPane.showMessageDialog(
+                    this,
+                    exception.getMessage(),
+                    localizationManager.text("dialog.error.title"),
+                    JOptionPane.ERROR_MESSAGE);
 
-            @Override
-            protected void done() {
-
-                try {
-
-                    ResultMessage resultMessage = get();
-                    closeQuietly();
-                    dispose();
-
-                    ResultFrame resultFrame = new ResultFrame(localizationManager, resultMessage);
-                    resultFrame.setVisible(true);
-
-                } catch (Exception exception) {
-
-                    closeQuietly();
-                    JOptionPane.showMessageDialog(
-                            QuestionFrame.this,
-                            exception.getCause() == null ? exception.getMessage() : exception.getCause().getMessage(),
-                            localizationManager.text("dialog.error.title"),
-                            JOptionPane.ERROR_MESSAGE);
-                    submitButton.setEnabled(true);
-
-                }
-            }
-        };
-
-        worker.execute();
+        }
 
     }
 
@@ -255,16 +237,9 @@ public class QuestionFrame extends JFrame {
 
     }
 
-    private void closeQuietly() {
+    public interface QuestionSubmitListener {
 
-        try {
-
-            connection.close();
-
-        } catch (IOException ignored) {
-
-            // Nothing else to do if cleanup fails during UI flow completion.
-        }
+        void submit(Question question, String response) throws IOException;
 
     }
 

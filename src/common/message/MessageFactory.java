@@ -41,21 +41,45 @@ public final class MessageFactory {
 
         }
 
-        if ("INSTRUCTOR_COMMAND".equals(messageType)) {
+        if ("CREATE_CLASS".equals(messageType)) {
 
-            return InstructorCommandMessage.fromParts(parts);
-
-        }
-
-        if ("INSTRUCTOR_QUESTION".equals(messageType)) {
-
-            return InstructorQuestionMessage.fromParts(parts);
+            return CreateClassMessage.fromParts(parts);
 
         }
 
-        if ("SUBMISSION_RESULTS".equals(messageType)) {
+        if ("CLASS_CREATED".equals(messageType)) {
 
-            return SubmissionResultsMessage.fromParts(parts);
+            return ClassCreatedMessage.fromParts(parts);
+
+        }
+
+        if ("JOIN_CLASS".equals(messageType)) {
+
+            return JoinClassMessage.fromParts(parts);
+
+        }
+
+        if ("JOIN_CLASS_RESPONSE".equals(messageType)) {
+
+            return JoinClassResponseMessage.fromParts(parts);
+
+        }
+
+        if ("POST_QUESTION".equals(messageType)) {
+
+            return PostQuestionMessage.fromParts(parts);
+
+        }
+
+        if ("STUDENT_JOINED".equals(messageType)) {
+
+            return StudentJoinedMessage.fromParts(parts);
+
+        }
+
+        if ("SUBMISSION_UPDATE".equals(messageType)) {
+
+            return SubmissionUpdateMessage.fromParts(parts);
 
         }
 

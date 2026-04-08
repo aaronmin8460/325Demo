@@ -9,34 +9,33 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
-public class InstructorQuestionMessage extends Message {
+public class PostQuestionMessage extends Message {
+
+    private String joinCode;
 
     private Question question;
 
-    public InstructorQuestionMessage(int messageId, LocalDateTime timestamp, int senderId, Question question) {
+    public PostQuestionMessage(int messageId, LocalDateTime timestamp, int senderId, String joinCode, Question question) {
 
         super(messageId, timestamp, senderId);
 
+        this.joinCode = joinCode;
         this.question = question;
 
     }
 
-    public Question getQuestion() {
+    public String getJoinCode() { return joinCode; }
 
-        return question;
+    public void setJoinCode(String joinCode) { this.joinCode = joinCode; }
 
-    }
+    public Question getQuestion() { return question; }
 
-    public void setQuestion(Question question) {
-
-        this.question = question;
-
-    }
+    public void setQuestion(Question question) { this.question = question; }
 
     @Override
     public String getMessageType() {
 
-        return "INSTRUCTOR_QUESTION";
+        return "POST_QUESTION";
 
     }
 
@@ -67,6 +66,7 @@ public class InstructorQuestionMessage extends Message {
                 String.valueOf(messageId),
                 timestamp.toString(),
                 String.valueOf(senderId),
+                MessageCodec.encode(joinCode),
                 question.getQuestionType(),
                 String.valueOf(question.getQuestionId()),
                 MessageCodec.encode(question.getPrompt()),
@@ -77,21 +77,22 @@ public class InstructorQuestionMessage extends Message {
 
     }
 
-    static InstructorQuestionMessage fromParts(String[] parts) {
+    static PostQuestionMessage fromParts(String[] parts) {
 
-        if (parts.length < 11) {
+        if (parts.length < 12) {
 
-            throw new IllegalArgumentException("Invalid INSTRUCTOR_QUESTION message.");
+            throw new IllegalArgumentException("Invalid POST_QUESTION message.");
 
         }
 
-        String questionType = parts[4];
-        int questionId = Integer.parseInt(parts[5]);
-        String prompt = MessageCodec.decode(parts[6]);
-        String topic = MessageCodec.decode(parts[7]);
-        int points = Integer.parseInt(parts[8]);
-        List<String> choices = MessageCodec.decodeList(parts[9]);
-        String correctAnswer = MessageCodec.decode(parts[10]);
+        String joinCode = MessageCodec.decode(parts[4]);
+        String questionType = parts[5];
+        int questionId = Integer.parseInt(parts[6]);
+        String prompt = MessageCodec.decode(parts[7]);
+        String topic = MessageCodec.decode(parts[8]);
+        int points = Integer.parseInt(parts[9]);
+        List<String> choices = MessageCodec.decodeList(parts[10]);
+        String correctAnswer = MessageCodec.decode(parts[11]);
         Question question;
 
         if ("MCQ".equals(questionType)) {
@@ -100,8 +101,7 @@ public class InstructorQuestionMessage extends Message {
 
         } else if ("TRUE_FALSE".equals(questionType)) {
 
-            question = new TrueFalseQuestion(questionId, prompt, topic, points,
-                    Boolean.parseBoolean(correctAnswer));
+            question = new TrueFalseQuestion(questionId, prompt, topic, points, Boolean.parseBoolean(correctAnswer));
 
         } else if ("SHORT_ANSWER".equals(questionType)) {
 
@@ -113,10 +113,11 @@ public class InstructorQuestionMessage extends Message {
 
         }
 
-        return new InstructorQuestionMessage(
+        return new PostQuestionMessage(
                 Integer.parseInt(parts[1]),
                 LocalDateTime.parse(parts[2]),
                 Integer.parseInt(parts[3]),
+                joinCode,
                 question);
 
     }

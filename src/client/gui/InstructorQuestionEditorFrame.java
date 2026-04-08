@@ -1,7 +1,6 @@
 package client.gui;
 
 import client.i18n.LocalizationManager;
-import client.network.InstructorClientService;
 import common.model.questions.MCQQuestion;
 import common.model.questions.Question;
 import common.model.questions.ShortAnswerQuestion;
@@ -19,7 +18,6 @@ import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.SwingWorker;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -28,6 +26,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,7 +34,7 @@ public class InstructorQuestionEditorFrame extends JFrame {
 
     private final LocalizationManager localizationManager;
 
-    private final InstructorClientService instructorClientService;
+    private final QuestionEditorListener questionEditorListener;
 
     private JComboBox<QuestionTypeOption> questionTypeComboBox;
 
@@ -55,13 +54,11 @@ public class InstructorQuestionEditorFrame extends JFrame {
 
     private JTextField expectedAnswerField;
 
-    private JButton saveButton;
-
     public InstructorQuestionEditorFrame(LocalizationManager localizationManager,
-            InstructorClientService instructorClientService) {
+            QuestionEditorListener questionEditorListener) {
 
         this.localizationManager = localizationManager;
-        this.instructorClientService = instructorClientService;
+        this.questionEditorListener = questionEditorListener;
 
         initializeComponents();
         layoutComponents();
@@ -94,8 +91,11 @@ public class InstructorQuestionEditorFrame extends JFrame {
 
         questionTypeComboBox.addActionListener(event -> updateAnswerCard());
 
-        saveButton = new JButton(localizationManager.text("instructor.editor.save"));
-        saveButton.addActionListener(event -> handleSave());
+        JButton buildButton = new JButton(localizationManager.text("instructor.editor.build"));
+        buildButton.addActionListener(event -> handleBuild());
+
+        JButton postButton = new JButton(localizationManager.text("instructor.editor.post"));
+        postButton.addActionListener(event -> handlePost());
 
         JButton clearButton = new JButton(localizationManager.text("instructor.editor.clear"));
         clearButton.addActionListener(event -> clearForm());
@@ -106,9 +106,8 @@ public class InstructorQuestionEditorFrame extends JFrame {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(clearButton);
         buttonPanel.add(backButton);
-        buttonPanel.add(saveButton);
-
-        getRootPane().setDefaultButton(saveButton);
+        buttonPanel.add(buildButton);
+        buttonPanel.add(postButton);
 
         add(buttonPanel, BorderLayout.SOUTH);
 
@@ -223,13 +222,17 @@ public class InstructorQuestionEditorFrame extends JFrame {
 
     }
 
-    private void handleSave() {
-
-        final Question question;
+    private void handleBuild() {
 
         try {
 
-            question = buildQuestionFromForm();
+            Question question = buildQuestionFromForm();
+            questionEditorListener.onQuestionBuilt(question);
+            JOptionPane.showMessageDialog(
+                    this,
+                    localizationManager.text("instructor.editor.built"),
+                    localizationManager.text("dialog.success.title"),
+                    JOptionPane.INFORMATION_MESSAGE);
 
         } catch (IllegalArgumentException exception) {
 
@@ -238,49 +241,42 @@ public class InstructorQuestionEditorFrame extends JFrame {
                     exception.getMessage(),
                     localizationManager.text("dialog.error.title"),
                     JOptionPane.WARNING_MESSAGE);
-            return;
 
         }
 
-        saveButton.setEnabled(false);
+    }
 
-        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-            @Override
-            protected Void doInBackground() throws Exception {
+    private void handlePost() {
 
-                instructorClientService.saveQuestion(question);
-                return null;
+        try {
 
-            }
+            Question question = buildQuestionFromForm();
+            questionEditorListener.onQuestionBuilt(question);
+            questionEditorListener.onQuestionPosted(question);
+            JOptionPane.showMessageDialog(
+                    this,
+                    localizationManager.text("instructor.editor.posted"),
+                    localizationManager.text("dialog.success.title"),
+                    JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
 
-            @Override
-            protected void done() {
+        } catch (IllegalArgumentException exception) {
 
-                saveButton.setEnabled(true);
+            JOptionPane.showMessageDialog(
+                    this,
+                    exception.getMessage(),
+                    localizationManager.text("dialog.error.title"),
+                    JOptionPane.WARNING_MESSAGE);
 
-                try {
+        } catch (IOException exception) {
 
-                    get();
-                    JOptionPane.showMessageDialog(
-                            InstructorQuestionEditorFrame.this,
-                            localizationManager.text("instructor.editor.saved"),
-                            localizationManager.text("dialog.success.title"),
-                            JOptionPane.INFORMATION_MESSAGE);
-                    clearForm();
+            JOptionPane.showMessageDialog(
+                    this,
+                    exception.getMessage(),
+                    localizationManager.text("dialog.error.title"),
+                    JOptionPane.ERROR_MESSAGE);
 
-                } catch (Exception exception) {
-
-                    JOptionPane.showMessageDialog(
-                            InstructorQuestionEditorFrame.this,
-                            exception.getCause() == null ? exception.getMessage() : exception.getCause().getMessage(),
-                            localizationManager.text("dialog.error.title"),
-                            JOptionPane.ERROR_MESSAGE);
-
-                }
-            }
-        };
-
-        worker.execute();
+        }
 
     }
 
@@ -406,6 +402,14 @@ public class InstructorQuestionEditorFrame extends JFrame {
 
         questionTypeComboBox.setSelectedIndex(0);
         updateAnswerCard();
+
+    }
+
+    public interface QuestionEditorListener {
+
+        void onQuestionBuilt(Question question);
+
+        void onQuestionPosted(Question question) throws IOException;
 
     }
 

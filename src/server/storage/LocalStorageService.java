@@ -1,16 +1,23 @@
 package server.storage;
 
+import common.model.LiveClassSession;
 import common.model.QuizSubmission;
 import common.model.questions.Question;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class LocalStorageService {
 
     private final List<Question> questions;
 
     private final List<QuizSubmission> submissions;
+
+    private final Map<String, LiveClassSession> sessionsByJoinCode;
+
+    private int nextClassId;
 
     private int nextQuestionId;
 
@@ -20,6 +27,8 @@ public class LocalStorageService {
 
         this.questions = new ArrayList<>();
         this.submissions = new ArrayList<>();
+        this.sessionsByJoinCode = new LinkedHashMap<>();
+        this.nextClassId = 1;
         this.nextQuestionId = 1;
         this.nextSubmissionId = 1;
 
@@ -34,6 +43,22 @@ public class LocalStorageService {
     public synchronized List<Question> getQuestions() {
 
         return new ArrayList<>(questions);
+
+    }
+
+    public synchronized Question findQuestionById(int questionId) {
+
+        for (Question question : questions) {
+
+            if (question.getQuestionId() == questionId) {
+
+                return question;
+
+            }
+
+        }
+
+        return null;
 
     }
 
@@ -52,6 +77,59 @@ public class LocalStorageService {
         questions.add(question);
 
         return question;
+
+    }
+
+    public synchronized LiveClassSession saveSession(LiveClassSession session) {
+
+        if (session.getClassId() <= 0) {
+
+            session.getClassList().setClassId(nextClassId++);
+
+        } else {
+
+            nextClassId = Math.max(nextClassId, session.getClassId() + 1);
+
+        }
+
+        sessionsByJoinCode.put(session.getJoinCode(), session);
+
+        return session;
+
+    }
+
+    public synchronized LiveClassSession getSession(String joinCode) {
+
+        if (joinCode == null || joinCode.trim().isEmpty()) {
+
+            return null;
+
+        }
+
+        return sessionsByJoinCode.get(joinCode.trim().toUpperCase());
+
+    }
+
+    public synchronized LiveClassSession findSessionByInstructor(String instructorUsername) {
+
+        if (instructorUsername == null || instructorUsername.trim().isEmpty()) {
+
+            return null;
+
+        }
+
+        for (LiveClassSession session : sessionsByJoinCode.values()) {
+
+            if (session.getInstructorUsername() != null
+                    && session.getInstructorUsername().equalsIgnoreCase(instructorUsername)) {
+
+                return session;
+
+            }
+
+        }
+
+        return null;
 
     }
 

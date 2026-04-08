@@ -2,17 +2,15 @@ package server.network;
 
 import common.message.AnswerMessage;
 import common.message.AuthMessage;
-import common.message.InstructorCommandMessage;
-import common.message.InstructorQuestionMessage;
+import common.message.CreateClassMessage;
+import common.message.JoinClassMessage;
 import common.message.Message;
 import common.message.MessageFactory;
-import common.message.QuestionMessage;
+import common.message.PostQuestionMessage;
 import common.message.ResultMessage;
-import common.message.SubmissionResultsMessage;
 import common.model.UserRole;
-import common.model.questions.Question;
 import common.util.SessionTime;
-import server.service.QuizService;
+import server.service.LiveClassroomService;
 
 import java.io.BufferedReader;
 import java.io.EOFException;
@@ -28,15 +26,28 @@ public class RequestHandler implements Runnable {
 
     private final Socket clientSocket;
 
-    private final QuizService quizService;
+    private final LiveClassroomService liveClassroomService;
+
+    private BufferedReader reader;
+
+    private PrintWriter writer;
+
+    private boolean authenticated;
+
+    private String username;
+
+    private String localeCode;
+
+    private UserRole role;
+
+    private String sessionCode;
 
     private int nextMessageId;
 
-    public RequestHandler(Socket clientSocket, QuizService quizService) {
+    public RequestHandler(Socket clientSocket, LiveClassroomService liveClassroomService) {
 
         this.clientSocket = clientSocket;
-
-        this.quizService = quizService;
+        this.liveClassroomService = liveClassroomService;
 
         this.nextMessageId = 1000;
 
@@ -47,11 +58,11 @@ public class RequestHandler implements Runnable {
 
         SessionTime sessionTime = new SessionTime(LocalDateTime.now(), LocalDateTime.now());
 
-        try (Socket socket = clientSocket;
-                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                PrintWriter writer = new PrintWriter(socket.getOutputStream(), true)) {
+        try (Socket socket = clientSocket) {
 
-            processRequest(reader, writer);
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            writer = new PrintWriter(socket.getOutputStream(), true);
+            processRequest();
 
         } catch (IOException | RuntimeException exception) {
 
@@ -59,6 +70,7 @@ public class RequestHandler implements Runnable {
 
         } finally {
 
+            liveClassroomService.unregisterClient(this);
             sessionTime.setEndTime(LocalDateTime.now());
             System.out.println("Client session completed in " + sessionTime.getDuration().toMillis() + " ms");
 
@@ -66,82 +78,107 @@ public class RequestHandler implements Runnable {
 
     }
 
-    private void processRequest(BufferedReader reader, PrintWriter writer) throws IOException {
+    private void processRequest() throws IOException {
 
-        Message firstMessage = readMessage(reader);
+        while (true) {
 
-        if (!(firstMessage instanceof AuthMessage)) {
+            Message message = readMessage();
 
-            sendResponse(writer, new ResultMessage(
-                    nextMessageId++,
-                    LocalDateTime.now(),
-                    0,
-                    false,
-                    localizedText("en", "server.protocol.expectedAuth")));
+            if (!authenticated) {
 
-            return;
+                handleAuthentication(message);
+                continue;
 
-        }
+            }
 
-        AuthMessage authMessage = (AuthMessage) firstMessage;
-
-        if (!authMessage.authenticate()) {
-
-            sendResponse(writer, new ResultMessage(
-                    nextMessageId++,
-                    LocalDateTime.now(),
-                    0,
-                    false,
-                    localizedText(authMessage.getLocaleCode(), "server.auth.failed")));
-
-            return;
+            handleAuthorizedMessage(message);
 
         }
-
-        // TODO: Add GeoService/LocationPolicy checks here before sending quiz content.
-        if (authMessage.getRole() == UserRole.INSTRUCTOR) {
-
-            processInstructorRequest(authMessage, reader, writer);
-            return;
-
-        }
-
-        Question question = quizService.getNextQuestion(authMessage.getLocaleCode());
-        QuestionMessage questionMessage = new QuestionMessage(
-                nextMessageId++,
-                LocalDateTime.now(),
-                0,
-                question);
-        sendResponse(writer, questionMessage);
-
-        Message secondMessage = readMessage(reader);
-
-        if (!(secondMessage instanceof AnswerMessage)) {
-
-            sendResponse(writer, new ResultMessage(
-                    nextMessageId++,
-                    LocalDateTime.now(),
-                    0,
-                    false,
-                    localizedText(authMessage.getLocaleCode(), "server.protocol.expectedAnswer")));
-
-            return;
-
-        }
-
-        AnswerMessage answerMessage = (AnswerMessage) secondMessage;
-        ResultMessage resultMessage = quizService.gradeAnswer(
-                question,
-                answerMessage.getAnswer(),
-                authMessage.getLocaleCode(),
-                nextMessageId++,
-                authMessage.getUsername());
-
-        sendResponse(writer, resultMessage);
 
     }
 
-    private Message readMessage(BufferedReader reader) throws IOException {
+    private void handleAuthentication(Message message) throws IOException {
+
+        if (!(message instanceof AuthMessage)) {
+
+            sendMessage(new ResultMessage(
+                    nextMessageId++,
+                    LocalDateTime.now(),
+                    0,
+                    false,
+                    ResourceBundle.getBundle("messages", new Locale("en")).getString("server.protocol.expectedAuth")));
+            throw new IOException("Expected AUTH message before any other message.");
+
+        }
+
+        AuthMessage authMessage = (AuthMessage) message;
+
+        if (!authMessage.authenticate()) {
+
+            sendMessage(new ResultMessage(
+                    nextMessageId++,
+                    LocalDateTime.now(),
+                    0,
+                    false,
+                    resolveLocalizedText(authMessage.getLocaleCode(), "server.auth.failed")));
+            throw new IOException("Authentication failed.");
+
+        }
+
+        this.authenticated = true;
+        this.username = authMessage.getUsername();
+        this.localeCode = authMessage.getLocaleCode();
+        this.role = authMessage.getRole();
+
+        sendMessage(new ResultMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                0,
+                true,
+                localizedText("server.auth.success")));
+
+    }
+
+    private void handleAuthorizedMessage(Message message) throws IOException {
+
+        if (message instanceof CreateClassMessage) {
+
+            liveClassroomService.handleCreateClass(this, (CreateClassMessage) message);
+            return;
+
+        }
+
+        if (message instanceof JoinClassMessage) {
+
+            liveClassroomService.handleJoinClass(this, (JoinClassMessage) message);
+            return;
+
+        }
+
+        if (message instanceof PostQuestionMessage) {
+
+            liveClassroomService.handlePostQuestion(this, (PostQuestionMessage) message);
+            return;
+
+        }
+
+        if (message instanceof AnswerMessage) {
+
+            liveClassroomService.handleAnswer(this, ((AnswerMessage) message).getAnswer());
+            return;
+
+        }
+
+        sendMessage(new ResultMessage(
+                nextMessageId++,
+                LocalDateTime.now(),
+                0,
+                false,
+                localizedText("server.protocol.unsupportedMessage")));
+
+    }
+
+    private Message readMessage() throws IOException {
 
         String payload = reader.readLine();
 
@@ -155,13 +192,31 @@ public class RequestHandler implements Runnable {
 
     }
 
-    private void sendResponse(PrintWriter writer, Message message) {
+    public synchronized void sendMessage(Message message) throws IOException {
 
         writer.println(message.serialize());
 
+        if (writer.checkError()) {
+
+            throw new IOException("Failed to send response to client.");
+
+        }
+
     }
 
-    private String localizedText(String localeCode, String key) {
+    public synchronized int nextMessageId() {
+
+        return nextMessageId++;
+
+    }
+
+    public String localizedText(String key) {
+
+        return resolveLocalizedText(localeCode, key);
+
+    }
+
+    private String resolveLocalizedText(String localeCode, String key) {
 
         Locale locale = localeCode == null || localeCode.trim().isEmpty()
                 ? new Locale("en")
@@ -173,73 +228,14 @@ public class RequestHandler implements Runnable {
 
     }
 
-    private void processInstructorRequest(AuthMessage authMessage, BufferedReader reader, PrintWriter writer)
-            throws IOException {
+    public String getUsername() { return username; }
 
-        Message instructorMessage = readMessage(reader);
+    public String getLocaleCode() { return localeCode; }
 
-        if (instructorMessage instanceof InstructorQuestionMessage) {
+    public UserRole getRole() { return role; }
 
-            Question question = ((InstructorQuestionMessage) instructorMessage).getQuestion();
+    public String getSessionCode() { return sessionCode; }
 
-            try {
-
-                quizService.saveQuestion(question);
-
-            } catch (IllegalArgumentException exception) {
-
-                sendResponse(writer, new ResultMessage(
-                        nextMessageId++,
-                        LocalDateTime.now(),
-                        0,
-                        false,
-                        exception.getMessage()));
-                return;
-
-            }
-
-            sendResponse(writer, new ResultMessage(
-                    nextMessageId++,
-                    LocalDateTime.now(),
-                    0,
-                    true,
-                    localizedText(authMessage.getLocaleCode(), "server.question.saved")));
-            return;
-
-        }
-
-        if (instructorMessage instanceof InstructorCommandMessage) {
-
-            InstructorCommandMessage commandMessage = (InstructorCommandMessage) instructorMessage;
-
-            if (InstructorCommandMessage.VIEW_RESULTS.equals(commandMessage.getCommand())) {
-
-                sendResponse(writer, new SubmissionResultsMessage(
-                        nextMessageId++,
-                        LocalDateTime.now(),
-                        0,
-                        quizService.getSubmissions()));
-                return;
-
-            }
-
-            sendResponse(writer, new ResultMessage(
-                    nextMessageId++,
-                    LocalDateTime.now(),
-                    0,
-                    false,
-                    localizedText(authMessage.getLocaleCode(), "server.command.unsupported")));
-            return;
-
-        }
-
-        sendResponse(writer, new ResultMessage(
-                nextMessageId++,
-                LocalDateTime.now(),
-                0,
-                false,
-                localizedText(authMessage.getLocaleCode(), "server.protocol.expectedInstructorRequest")));
-
-    }
+    public void setSessionCode(String sessionCode) { this.sessionCode = sessionCode; }
 
 }
