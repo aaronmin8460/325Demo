@@ -40,8 +40,12 @@ public class AwsStorageService implements Storable {
 
     }
 
-    public String getAwsEndpoint() { return awsEndpoint; }
+    public String getAwsEndpoint() {
+        return awsEndpoint;
+    }
 
-    public void setAwsEndpoint(String awsEndpoint) { this.awsEndpoint = awsEndpoint; }
+    public void setAwsEndpoint(String awsEndpoint) {
+        this.awsEndpoint = awsEndpoint;
+    }
 
 }
